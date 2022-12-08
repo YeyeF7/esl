@@ -93,12 +93,18 @@ func (con *Connection) SendEvent(cmd string, headers map[string]string, body []b
 	if err != nil {
 		return nil, fmt.Errorf("send event: %v", err)
 	}
-	ev := <-con.cmdReply
-	reply := ev.Get("Reply-Text")
-	if strings.HasPrefix(reply, "-ERR") {
-		return nil, fmt.Errorf("send event %s: %s", cmd, strings.TrimSpace(reply))
+
+	after := time.After(1 * time.Second)
+	select {
+	case ev := <-con.cmdReply:
+		reply := ev.Get("Reply-Text")
+		if strings.HasPrefix(reply, "-ERR") {
+			return nil, fmt.Errorf("send event %s: %s", cmd, strings.TrimSpace(reply))
+		}
+		return ev, nil
+	case <-after:
+		return nil, fmt.Errorf("send event %s: timeout", cmd)
 	}
-	return ev, nil
 }
 
 func (con *Connection) Api(cmd string, args ...string) (string, error) {
